@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 
 @SpringBootTest
 @Transactional
@@ -105,4 +107,154 @@ public class W1_JpaBasicTest {
         System.out.println("상품명: " + itemName);
         System.out.println("=== 상품 데이터 접근 종료 ===");
     }
-}
+
+    //N+1 문제 발생
+    @Test
+    void findNPlusOne() {
+        //아이템 하나에 입찰 두개. 1:N
+        D1_VintageItem item1 = new D1_VintageItem("Polo Knit", 50000);
+        em.persist(item1);
+
+        //아이템 하나에 입찰 두개. 1:N
+        D1_VintageItem item2 = new D1_VintageItem("Polo Knit", 50000);
+        em.persist(item2);
+
+        D2_Bid bid = new D2_Bid(item1, 55000);
+        em.persist(bid);
+
+        D2_Bid bid2 = new D2_Bid(item1, 90000);
+        em.persist(bid2);
+
+        D2_Bid bid3 = new D2_Bid(item1, 70000);
+        em.persist(bid3);
+
+        // 2. [중요] 영속성 컨텍스트 완전히 비우기. 1차캐시만 참조하면 쿼리 안나감
+        em.flush();
+        em.clear();
+        System.out.println("=== 영속성 컨텍스트 비우기 완료 (이제부터 진짜 DB 쿼리 나감) ===");
+
+        // 1. 모든 상품 조회 (쿼리 1번)
+        // 결과: 상품이 10개라면, 10개의 VintageItem 객체가 생성됨 (bids는 프록시 상태)
+        List<D1_VintageItem> items = em.createQuery("select v from D1_VintageItem v", D1_VintageItem.class)
+                .getResultList();
+
+        // 2. 각 상품의 입찰 내역을 루프 돌며 접근(반복문 돌면서 프록시 초기화 유도)
+        for (D1_VintageItem item : items) {
+
+            // item.getBids()를 호출하고 그 내부 데이터(size 등)에 접근하는 순간 쿼리 발생!
+            // 상품이 10개면 여기서 쿼리가 10번 더 나감 (N번),상품이 1개면 1번+입찰내역 가져오기 1번=2번 select
+            System.out.println("상품명: " + item.getName() + ", 입찰 수: " + item.getBids().size());
+        }
+    }
+        @Test
+        void joinTest() {
+
+        //데이터 넣기. 아이텝 2개 각각 입찰 2개,1개
+            D1_VintageItem item1 = new D1_VintageItem("Polo Knit", 50000);
+            em.persist(item1);
+
+            //아이템 하나에 입찰 두개. 1:N
+            D1_VintageItem item2 = new D1_VintageItem("Polo Knit", 50000);
+            em.persist(item2);
+
+            D2_Bid bid = new D2_Bid(item1, 55000);
+            em.persist(bid);
+
+            D2_Bid bid2 = new D2_Bid(item1, 90000);
+            em.persist(bid2);
+
+            D2_Bid bid3 = new D2_Bid(item2, 70000);
+            em.persist(bid3);
+
+            // 2. [중요] 영속성 컨텍스트 완전히 비우기. 1차캐시만 참조하면 쿼리 안나감
+            em.flush();
+            em.clear();
+            System.out.println("=== 영속성 컨텍스트 비우기 완료 (이제부터 진짜 DB 쿼리 나감) ===");
+
+            // JPQL에 join을 썼지만, SELECT 절에는 v(VintageItem)만 있습니다.
+            List<D1_VintageItem> items = em.createQuery("select v from D1_VintageItem v join v.bids", D1_VintageItem.class)
+                    .getResultList();
+
+            for (D1_VintageItem item : items) {
+                // DB에서는 JOIN을 했지만, JPA는 Bid 데이터를 긁어오지 않았습니다.
+                // 여전히 bids는 프록시이며, 호출할 때마다 쿼리가 또 나갑니다. (N+1 그대로 발생)
+                System.out.println(item.getBids().size());
+            }
+        }
+
+    @Test
+    void fetchJoinTest() {
+        // join fetch를 쓰면 SELECT 절에 v와 연관된 bids의 컬럼이 모두 포함됩니다.
+        List<D1_VintageItem> items = em.createQuery("select v from D1_VintageItem v join fetch v.bids", D1_VintageItem.class)
+                .getResultList();
+        //데이터 넣기. 아이텝 2개 각각 입찰 2개,1개
+        D1_VintageItem item1 = new D1_VintageItem("Polo Knit", 50000);
+        em.persist(item1);
+
+        //아이템 하나에 입찰 두개. 1:N
+        D1_VintageItem item2 = new D1_VintageItem("Polo Knit", 50000);
+        em.persist(item2);
+
+        D2_Bid bid = new D2_Bid(item1, 55000);
+        em.persist(bid);
+
+        D2_Bid bid2 = new D2_Bid(item1, 90000);
+        em.persist(bid2);
+
+        D2_Bid bid3 = new D2_Bid(item2, 70000);
+        em.persist(bid3);
+
+        // 2. [중요] 영속성 컨텍스트 완전히 비우기. 1차캐시만 참조하면 쿼리 안나감
+        em.flush();
+        em.clear();
+        System.out.println("=== 영속성 컨텍스트 비우기 완료 (이제부터 진짜 DB 쿼리 나감) ===");
+
+
+        for (D1_VintageItem item : items) {
+            // 이미 1차 캐시에 '진짜 Bid 객체'들이 다 들어있습니다.
+            // 쿼리가 추가로 전혀 나가지 않습니다. (쿼리 1번으로 끝)
+            System.out.println(item.getBids().size());
+        }
+    }
+
+    // 1. application.yml 에 글로벌 설정 추가
+// spring.jpa.properties.hibernate.default_batch_fetch_size: 100
+
+    @Test
+    void pagingSolution() {
+        //데이터 넣기. 아이텝 2개 각각 입찰 2개,1개
+        D1_VintageItem item1 = new D1_VintageItem("Polo Knit", 50000);
+        em.persist(item1);
+
+        //아이템 하나에 입찰 두개. 1:N
+        D1_VintageItem item2 = new D1_VintageItem("Polo Knit", 50000);
+        em.persist(item2);
+
+        D2_Bid bid = new D2_Bid(item1, 55000);
+        em.persist(bid);
+
+        D2_Bid bid2 = new D2_Bid(item1, 90000);
+        em.persist(bid2);
+
+        D2_Bid bid3 = new D2_Bid(item2, 70000);
+        em.persist(bid3);
+
+        // 2. [중요] 영속성 컨텍스트 완전히 비우기. 1차캐시만 참조하면 쿼리 안나감
+        em.flush();
+        em.clear();
+        System.out.println("=== 영속성 컨텍스트 비우기 완료 (이제부터 진짜 DB 쿼리 나감) ===");
+
+        // 페치 조인을 빼고, 그냥 상품만 페이징해서 조회합니다.
+        List<D1_VintageItem> items = em.createQuery("select v from D1_VintageItem v", D1_VintageItem.class)
+                .setFirstResult(0)
+                .setMaxResults(10)
+                .getResultList();
+
+        // 루프를 돌 때, BatchSize가 설정되어 있으면
+        // 10개 상품에 대한 입찰 내역을 개별 쿼리가 아닌 'IN 쿼리' 1번으로 묶어서 가져옵니다.
+        for (D1_VintageItem item : items) {
+            System.out.println(item.getBids().size());
+        }
+    }
+    }
+

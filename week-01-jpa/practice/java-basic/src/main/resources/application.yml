@@ -8,10 +8,14 @@ spring:
         format_sql: true
         # 3. SQL의 가독성을 위해 색상 하이라이트 적용
         highlight_sql: true
-
+        # 지연 로딩 시 N+1 문제를 방지하기 위해 한꺼번에 가져올 개수 설정
+        default_batch_fetch_size: 100
+    # SQL 로그에 하이라이트 적용 (선택 사항)
+    properties.hibernate.highlight_sql: true
 # 4. 바인딩되는 파라미터 값(값 자리에 들어가는 ? 내용)까지 보고 싶을 때 추가
 logging:
   level:
+    # 하이버네이트가 생성하는 SQL을 더 상세히 보고 싶을 때 사용
     org.hibernate.SQL: debug
     # org.hibernate.type.descriptor.sql.BasicBinder: trace (버전에 따라 다름)
 

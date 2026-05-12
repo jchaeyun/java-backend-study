@@ -1,12 +1,12 @@
 package com.example.java_basic;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Getter
@@ -28,7 +28,8 @@ public class D1_VintageItem {
     비즈니스 의미가 담긴 메서드를 직접 만드는 습관을 들이는 게 좋습니다.
      */
 
-    private List<Bid>
+    @OneToMany(mappedBy="item")
+    private List<D2_Bid> bids=new ArrayList<>();
 
     public D1_VintageItem(String name, int price) {
         this.name = name;

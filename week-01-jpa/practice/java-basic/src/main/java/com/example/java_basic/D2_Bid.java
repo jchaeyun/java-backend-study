@@ -17,7 +17,7 @@ public class D2_Bid {
 
     //여기가 핵심! 반드시 LAZY로 설정해야 프록시가 작동합니다.
     //입찰(Bid)은 하나의 상품(VintageItem)에 속하므로 ManyToOne 관계
-    @ManyToOne(fetch=FetchType.LAZY)
+    @ManyToOne(fetch=FetchType.LAZY)//N:1 지연로딩 필수
     @JoinColumn(name="item_id") //DB 컬럼 설정: DB에는 item_id라는 FK 컬럼이 생김
     private D1_VintageItem item;
 
