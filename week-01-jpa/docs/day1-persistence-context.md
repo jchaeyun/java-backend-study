@@ -49,8 +49,24 @@
 
 * **JDBC Batch 비활성화 이유:**
 * DB 벤더별 드라이버 지원 방식이 다르고, 잘못 설정 시 메모리 누수가 발생할 수 있어 기본값은 비활성화 상태.
-* `GenerationType.IDENTITY` 키 생성 전략 사용 시, `INSERT` 즉시 ID 값을 알아야 하므로 Batch 처리가 무효화됨.
 
+
+* **해결책 (application.yml 설정):**
+* 여러 쿼리를 하나의 패킷으로 묶어 전송하도록 명시적 활성화 필요.
+
+
+```yaml
+spring:
+  jpa:
+    properties:
+      hibernate:
+        jdbc.batch_size: 50
+        order_inserts: true
+        order_updates: true
+
+```
+
+* `GenerationType.IDENTITY` 키 생성 전략 사용 시, `INSERT` 즉시 ID 값을 알아야 하므로 Batch 처리가 무효화됨.
 **`IDENTITY` 전략(주로 MySQL, H2에서 사용)을 쓰면 `persist()`가 호출되는 즉시 `INSERT` 쿼리가 실행됨.**
 
 원래 JPA의 대원칙은 "트랜잭션이 끝날 때(`commit`) 혹은 수동으로 `flush`를 할 때 쿼리를 한꺼번에 보낸다"이지만, `IDENTITY`는 이 원칙을 깨뜨리는 **유일한 예외**.
@@ -82,20 +98,7 @@
 그래서 아까 로그에서 `===persist 호출 전===`과 `===persist 호출 후===` 사이에 쿼리가 찍혔던 것. `IDENTITY` 전략을 사용하고 있다면 이는 지극히 정상적인 동작.
 
 
-* **해결책 (application.yml 설정):**
-* 여러 쿼리를 하나의 패킷으로 묶어 전송하도록 명시적 활성화 필요.
 
-
-```yaml
-spring:
-  jpa:
-    properties:
-      hibernate:
-        jdbc.batch_size: 50
-        order_inserts: true
-        order_updates: true
-
-```
 
 
 
@@ -123,6 +126,74 @@ spring:
 
 * **Lombok 적용:**
 * `@NoArgsConstructor(access = AccessLevel.PROTECTED)`를 사용하여 보일러플레이트 코드를 줄이면서 객체 무결성을 보호함.
+
+
+
+### 1. "의미 없는 빈 객체의 무분별한 생성"은 왜 문제일까?
+
+우리가 만든 `CheerMessage` 엔티티가 `내용(content)`과 `작성자(writer)`가 반드시 있어야 한다고 가정해 봅시다.
+
+* **Public으로 열려 있을 때:**
+  누군가 코드 어디선가 `new CheerMessage();`라고 호출해서 아무 내용도 없는 빈 껍데기 객체를 만들 수 있습니다. 이렇게 만들어진 객체는 비즈니스 로직을 수행할 때 에러를 일으키는 '시한폭탄'이 됩니다.
+* **캡슐화 훼손:**
+  객체는 스스로의 무결성(필수 데이터가 다 들어있는지)을 책임져야 합니다. 아무나 빈 객체를 만들 수 있게 허용하는 순간, 그 책임이 무너지는 것이죠.
+
+---
+
+### 2. 그런데 왜 아예 막지 못하고 `protected`로 열어둘까?
+
+여기서 **JPA(Hibernate)의 특성**이 등장합니다. JPA는 우리가 만든 엔티티를 관리할 때 내부적으로 '프록시(Proxy)'라는 가짜 객체를 만들어서 사용합니다.
+
+* **JPA의 요구사항:** JPA는 DB에서 데이터를 가져와 객체에 채워넣을 때, 일단 빈 객체를 생성한 뒤에 데이터를 주입합니다. 이때 기본 생성자(No-args constructor)가 반드시 필요합니다.
+* **협상 지점:**
+* `public`: 아무나 빈 객체를 만들 수 있어서 보안상 불안함.
+* `private`: JPA가 이 객체를 생성하지 못해서 에러가 발생함.
+* **`protected`**: **"일반 사용자(외부 패키지)는 빈 객체를 못 만들게 막으면서, JPA 프레임워크는 접근할 수 있게 열어두는"** 가장 적절한 타협점입니다.
+
+
+
+---
+
+### 3. Lombok의 `@NoArgsConstructor(access = AccessLevel.PROTECTED)`
+
+이 긴 설정을 매번 코드로 치기 귀찮으니 **Lombok**이 대신 해주는 것입니다.
+
+#### 코드로 비교하기
+
+**기존 방식 (직접 작성):**
+
+```java
+@Entity
+public class CheerMessage {
+    // ... 필드들 ...
+
+    // JPA를 위해 억지로 만들었지만, 외부에서는 못 쓰게 protected로 제한
+    protected CheerMessage() {
+    }
+}
+
+```
+
+**Lombok 방식 (어노테이션 한 줄):**
+
+```java
+@Entity
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class CheerMessage {
+    // ... 필드들 ...
+}
+
+```
+
+---
+
+### 💡 요약하자면
+
+1. **객체 무결성 보호:** "내용물 없는 빈 객체는 아무나 만들지 마!" (개발자 실수 방지)
+2. **JPA 호환성:** "하지만 JPA 너는 내부적으로 필요하다니까 `protected`까지는 허용해줄게."
+3. **Lombok 사용:** "이 복잡한 의도를 코드 한 줄로 깔끔하게 처리하겠다!"
+
+결국 이 설정은 "DB에서 데이터를 불러오는 기능은 유지하면서, 코드 상에서 실수로 비어있는 객체를 만들어 로직이 꼬이는 것을 원천 봉쇄하겠다"는 의도로 이해하시면 됩니다.
 
 
 * **`@Setter` 사용 금지:**
