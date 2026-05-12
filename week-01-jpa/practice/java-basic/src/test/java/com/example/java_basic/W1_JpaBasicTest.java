@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
 @Transactional
-public class D1_PersistenceBasicTest {
+public class W1_JpaBasicTest {
     @Autowired
     EntityManager em;
 
@@ -72,5 +72,37 @@ public class D1_PersistenceBasicTest {
         em.flush();
 
         System.out.println("=== flush 후 UPDATE 쿼리 확인 ===");
+    }
+
+    @Test
+    //프록시 동작 확인 실습
+    public void proxyActionTest(){
+        // 1. 데이터 준비 (상품 하나와 그에 걸린 입찰 하나)
+        D1_VintageItem item = new D1_VintageItem("Polo Knit", 50000);
+        em.persist(item);
+
+        D2_Bid bid = new D2_Bid(item, 55000);
+        em.persist(bid);
+
+        em.flush(); //db에 보내기만 한거고 db에 영구저장은 아님
+        em.clear(); // 영속성 컨텍스트를 비워서 1차 캐시를 제거합니다.
+
+        System.out.println("=== 입찰(Bid)만 조회 시작 ===");
+        D2_Bid findBid = em.find(D2_Bid.class, bid.getId());
+        //클래스 (D2_Bid.class): "어떤 테이블을 뒤져야 해?" (Mapping 정보)
+        //식별자 (bid.getId()): "그 테이블에서 몇 번 행(Row)을 가져와야 해?" (PK 정보)
+        //->find는 항상 클래스,아이디로 데이터를 조회함.findByName 이런거는 pk가 아니라 이름으로 찾음
+        System.out.println("=== 입찰 조회 종료 ===");
+
+        // 2. 가짜 객체(Proxy) 확인(SELECT 쿼리 나가긴함)
+        System.out.println("찾은 입찰의 상품 클래스: " + findBid.getItem().getClass().getName());
+        // 출력 결과에 'HibernateProxy'라는 글자가 포함되어야 성공!
+
+        System.out.println("=== 상품(Item) 실제 데이터 접근 시작 ===");
+        // 지연 로딩! 실제 이름을 꺼내는 순간, 입찰 정보는 아까 가져왔음에도 SELECT 쿼리가 나갑니다.(아까는 껍데기뿐.proxy가 알아서 보냄)
+        // 즉시 로딩이었다면 첫 번째 select에서 join을 써서 상품정보까지 가져왔을 것.
+        String itemName = findBid.getItem().getName();
+        System.out.println("상품명: " + itemName);
+        System.out.println("=== 상품 데이터 접근 종료 ===");
     }
 }
