@@ -16,6 +16,8 @@ public class D1_VintageItem {
     private String name;
     private int price;
 
+    private List<Bid>
+
     public D1_VintageItem(String name, int price) {
         this.name = name;
         this.price = price;

@@ -19,7 +19,7 @@ public class D1_PersistenceBasicTest {
         //준비:DB에 데이터 1건 강제 삽입
         D1_VintageItem vintageItem = new D1_VintageItem("Levi's 501",100000);
         em.persist(vintageItem); //1차 캐시에 넣음,스냅샷 저장,ActionQueue에 쿼리 넣음
-        em.flush(); //queue에 있던 쿼리를 db로 전송(임시 처리, 아직 저장 안됨)
+        em.flush(); //queue에 있던 쿼리를 db로 전송(임시 처리, 쿼리는 나가지만 메모리단에서 처리,아직 디스크에 저장 안됨)
         em.clear(); //영속성 컨텍스트 비움(초기 상태 세팅)
         
         System.out.println("===첫 번째 조회 시작===");
@@ -58,7 +58,7 @@ public class D1_PersistenceBasicTest {
     public void dirtyCheckingTest(){
         // 준비: 초기 데이터 삽입
         D1_VintageItem item = new D1_VintageItem("Vintage Denim", 50000);
-        em.persist(item);
+        em.persist(item); //IDENTITY라 바로 쿼리 넣고 id 받아와서 1차 캐시에 저장
         em.flush(); // DB에 쿼리 전송 (스냅샷 생성됨)
 
         System.out.println("=== 가격 수정 시작 ===");
