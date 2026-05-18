@@ -41,19 +41,19 @@ public class JwtTokenProvider {
                 .compact();
     }
 
-    // 2. 토큰에서 인증 정보 조회
-    public Authentication getAuthentication(String token) {
-        //JWT의 배를 갈라 그 안에 있는 유저 정보를 꺼냄
-        String userId = Jwts.parser()
-                .verifyWith((SecretKey) key) //서버의 비밀키로 이 신분증 진짜인지 검증
-                .build()
-                .parseSignedClaims(token)
-                .getPayload()
-                .getSubject();
 
-        //토큰을 읽고, 스프링 시큐리티 전용 신분증(객체)로 번역
-        //(userId-토큰에서 추출한 값,비밀번호-이미 토큰으로 인증,필요없으니 빈칸.권한 리스트(실습용이라 빈칸))
-        return new UsernamePasswordAuthenticationToken(userId, "", Collections.emptyList());
+    //트랜잭션이 없는 보안 필터 구역에서 DB(영속성 컨텍스트)를 조회하기 위한 '검색 키워드(이메일)'를 던져주기 위해 반드시 필요한 메서드
+    // 토큰을 매개변수로 받아 페이로드의 Subject(여기서는 이메일)를 추출합니다.
+    public String getSubject(String token) {
+        String userId = Jwts.parser()
+                .verifyWith((SecretKey) key) // 서버의 비밀키로 서명 검증
+                .build()
+                .parseSignedClaims(token)    // 파싱 및 전체 클레임 객체 획득
+                .getPayload()                // 페이로드(데이터 본문) 추출
+                .getSubject();               // 페이로드에서 'sub' 값(이메일)을 String으로 획득
+
+        // 문자열 자체를 그대로 반환
+        return userId;
     }
 
     // 3. 토큰 유효성 및 만료일자 확인
